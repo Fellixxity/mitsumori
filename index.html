@@ -96,46 +96,67 @@
 
   <button onclick="generatePDF()">PDFとして保存</button>
 
-  <script>
-    document.getElementById("estimate-form").addEventListener("submit", function(e) {
-      e.preventDefault();
-      const area = parseFloat(document.getElementById("area").value);
-      const paint = parseFloat(document.getElementById("paintType").value);
-      const condition = parseFloat(document.getElementById("condition").value);
-      const scaffold = parseInt(document.getElementById("scaffold").value);
-      const client = document.getElementById("clientName").value;
-      const address = document.getElementById("address").value;
-      const building = document.getElementById("buildingType").value;
+ <script>
+  document.getElementById("estimate-form").addEventListener("submit", function(e) {
+    e.preventDefault();
 
-      const base = area * paint * condition;
-      const total = base + scaffold;
+    const getValue = id => document.getElementById(id).value;
 
-      const result = `
-        <p><strong>顧客名：</strong>${client}</p>
-        <p><strong>住所：</strong>${address}</p>
-        <p><strong>建物種別：</strong>${building}</p>
-        <p><strong>塗装面積：</strong>${area}㎡</p>
-        <p><strong>塗料単価：</strong>${paint.toLocaleString()}円</p>
-        <p><strong>劣化係数：</strong>${condition}</p>
-        <p><strong>足場費用：</strong>${scaffold.toLocaleString()}円</p>
-        <p><strong>見積総額：</strong><span style="font-size: 1.2em; color: green;">${total.toLocaleString()} 円（税抜）</span></p>
-      `;
-      document.getElementById("resultText").innerHTML = result;
+    const area = parseFloat(getValue("area"));
+    const paint = parseFloat(getValue("paintType"));
+    const condition = parseFloat(getValue("condition"));
+    const scaffold = parseInt(getValue("scaffold"));
+    const client = getValue("clientName") || "(未入力)";
+    const address = getValue("address") || "(未入力)";
+    const building = getValue("buildingType");
 
+    const base = area * paint * condition;
+    const total = base + scaffold;
+    const totalWithTax = Math.round(total * 1.1);
+
+    const result = `
+      <p><strong>顧客名：</strong>${client}</p>
+      <p><strong>住所：</strong>${address}</p>
+      <p><strong>建物種別：</strong>${building}</p>
+      <p><strong>塗装面積：</strong>${area}㎡</p>
+      <p><strong>塗料単価：</strong>${paint.toLocaleString()}円</p>
+      <p><strong>劣化係数：</strong>${condition}</p>
+      <p><strong>足場費用：</strong>${scaffold.toLocaleString()}円</p>
+      <p><strong>見積総額：</strong><span style="font-size: 1.2em; color: green;">${total.toLocaleString()} 円（税抜）</span></p>
+      <p><strong>税込額：</strong><span style="font-size: 1.2em; color: blue;">${totalWithTax.toLocaleString()} 円（税込）</span></p>
+    `;
+    document.getElementById("resultText").innerHTML = result;
+
+    if (address !== "(未入力)") {
       const addressEncoded = encodeURIComponent(address);
       document.getElementById("mapFrame").src = `https://www.google.com/maps?q=${addressEncoded}&output=embed`;
-    });
-
-    function generatePDF() {
-      const element = document.getElementById("estimate").cloneNode(true);
-      const mapSection = element.querySelector("#mapContainer");
-      if (mapSection) {
-        mapSection.remove();
-      }
-      const container = document.createElement("div");
-      container.appendChild(element);
-      html2pdf().from(container).save("見積書.pdf");
+    } else {
+      document.getElementById("mapFrame").src = "";
     }
-  </script>
+  });
+
+  function generatePDF() {
+    const resultHTML = document.getElementById("resultText").innerHTML.trim();
+    if (!resultHTML || resultHTML.includes("ここに見積結果が表示されます")) {
+      alert("先に見積を作成してください。");
+      return;
+    }
+
+    const element = document.getElementById("estimate").cloneNode(true);
+    const mapSection = element.querySelector("#mapContainer");
+    if (mapSection) mapSection.remove();
+
+    const container = document.createElement("div");
+    container.appendChild(element);
+
+    html2pdf().set({
+      margin: 10,
+      filename: '見積書.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(container).save();
+  }
+</script>
 </body>
 </html>
