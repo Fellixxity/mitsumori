@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>営業用見積もりフォーム</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
   <style>
@@ -14,21 +14,32 @@
     }
     h1 {
       text-align: center;
+      font-size: 1.5em;
+      margin-bottom: 20px;
     }
     label {
       display: block;
       margin-top: 15px;
+      font-weight: bold;
     }
     input, select {
       width: 100%;
-      padding: 8px;
+      padding: 10px;
+      font-size: 16px;
       margin-top: 5px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+      cursor: pointer;
     }
     #estimate {
       margin-top: 30px;
       padding: 15px;
       background: #fff;
       border: 1px solid #ccc;
+      box-sizing: border-box;
     }
     #resultText button {
       display: none;
@@ -41,10 +52,17 @@
       height: 300px;
       border: none;
     }
-    button {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
+    /* スマホ用レスポンシブ */
+    @media screen and (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      h1 {
+        font-size: 1.2em;
+      }
+      input, select, button {
+        font-size: 15px;
+      }
     }
   </style>
 </head>
@@ -52,8 +70,12 @@
   <h1>営業用見積もりフォーム</h1>
 
   <form id="estimate-form">
-    <label>顧客名 <input type="text" id="clientName" required></label>
-    <label>現場住所 <input type="text" id="address" required></label>
+    <label>顧客名
+      <input type="text" id="clientName" placeholder="任意入力" />
+    </label>
+    <label>現場住所
+      <input type="text" id="address" placeholder="任意入力" />
+    </label>
     <label>建物種別
       <select id="buildingType">
         <option>戸建て</option>
@@ -61,7 +83,9 @@
         <option>ビル</option>
       </select>
     </label>
-    <label>外壁面積（㎡）<input type="number" id="area" required></label>
+    <label>外壁面積（㎡）
+      <input type="number" id="area" value="100" min="0" step="10" />
+    </label>
     <label>塗料の種類
       <select id="paintType">
         <option value="1500">シリコン（1,500円/㎡）</option>
@@ -82,6 +106,9 @@
         <option value="0">なし</option>
       </select>
     </label>
+    <label>割引率（%）
+      <input type="number" id="discount" value="0" min="0" max="100" step="1" />
+    </label>
     <button type="submit">見積もる</button>
   </form>
 
@@ -90,73 +117,88 @@
     <div id="resultText">ここに見積結果が表示されます</div>
     <div id="mapContainer">
       <h3>現場地図</h3>
-      <iframe id="mapFrame" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+      <iframe
+        id="mapFrame"
+        loading="lazy"
+        allowfullscreen
+        referrerpolicy="no-referrer-when-downgrade"
+      ></iframe>
     </div>
   </div>
 
   <button onclick="generatePDF()">PDFとして保存</button>
 
- <script>
-  document.getElementById("estimate-form").addEventListener("submit", function(e) {
-    e.preventDefault();
+  <script>
+    document.getElementById("estimate-form").addEventListener("submit", function (e) {
+      e.preventDefault();
 
-    const getValue = id => document.getElementById(id).value;
+      const getValue = (id) => document.getElementById(id).value;
 
-    const area = parseFloat(getValue("area"));
-    const paint = parseFloat(getValue("paintType"));
-    const condition = parseFloat(getValue("condition"));
-    const scaffold = parseInt(getValue("scaffold"));
-    const client = getValue("clientName") || "(未入力)";
-    const address = getValue("address") || "(未入力)";
-    const building = getValue("buildingType");
+      const area = Math.max(0, parseFloat(getValue("area")) || 0);
+      const paint = parseFloat(getValue("paintType"));
+      const condition = parseFloat(getValue("condition"));
+      const scaffold = parseInt(getValue("scaffold"));
+      const discount = Math.min(100, Math.max(0, parseFloat(getValue("discount")) || 0));
+      const client = getValue("clientName").trim() || "(未入力)";
+      const address = getValue("address").trim() || "(未入力)";
+      const building = getValue("buildingType");
 
-    const base = area * paint * condition;
-    const total = base + scaffold;
-    const totalWithTax = Math.round(total * 1.1);
+      const base = area * paint * condition;
+      const total = base + scaffold;
+      const totalWithTax = Math.round(total * 1.1);
 
-    const result = `
-      <p><strong>顧客名：</strong>${client}</p>
-      <p><strong>住所：</strong>${address}</p>
-      <p><strong>建物種別：</strong>${building}</p>
-      <p><strong>塗装面積：</strong>${area}㎡</p>
-      <p><strong>塗料単価：</strong>${paint.toLocaleString()}円</p>
-      <p><strong>劣化係数：</strong>${condition}</p>
-      <p><strong>足場費用：</strong>${scaffold.toLocaleString()}円</p>
-      <p><strong>見積総額：</strong><span style="font-size: 1.2em; color: green;">${total.toLocaleString()} 円（税抜）</span></p>
-      <p><strong>税込額：</strong><span style="font-size: 1.2em; color: blue;">${totalWithTax.toLocaleString()} 円（税込）</span></p>
-    `;
-    document.getElementById("resultText").innerHTML = result;
+      const discountAmount = Math.round(totalWithTax * (discount / 100));
+      const finalTotal = totalWithTax - discountAmount;
 
-    if (address !== "(未入力)") {
-      const addressEncoded = encodeURIComponent(address);
-      document.getElementById("mapFrame").src = `https://www.google.com/maps?q=${addressEncoded}&output=embed`;
-    } else {
-      document.getElementById("mapFrame").src = "";
+      const result = `
+        <p><strong>顧客名：</strong>${client}</p>
+        <p><strong>住所：</strong>${address}</p>
+        <p><strong>建物種別：</strong>${building}</p>
+        <p><strong>塗装面積：</strong>${area}㎡</p>
+        <p><strong>塗料単価：</strong>${paint.toLocaleString()}円</p>
+        <p><strong>劣化係数：</strong>${condition}</p>
+        <p><strong>足場費用：</strong>${scaffold.toLocaleString()}円</p>
+        <p><strong>見積総額：</strong><span style="font-size: 1.2em; color: green;">${total.toLocaleString()} 円（税抜）</span></p>
+        <p><strong>税込額：</strong><span style="font-size: 1.2em; color: blue;">${totalWithTax.toLocaleString()} 円（税込）</span></p>
+        <p><strong>割引率：</strong>${discount}%</p>
+        <p><strong>割引額：</strong>${discountAmount.toLocaleString()} 円</p>
+        <p><strong>最終税込額：</strong><span style="font-size: 1.2em; color: red;">${finalTotal.toLocaleString()} 円</span></p>
+      `;
+      document.getElementById("resultText").innerHTML = result;
+
+      if (address !== "(未入力)") {
+        const addressEncoded = encodeURIComponent(address);
+        document.getElementById("mapFrame").src = `https://www.google.com/maps?q=${addressEncoded}&output=embed`;
+      } else {
+        document.getElementById("mapFrame").src = "";
+      }
+    });
+
+    function generatePDF() {
+      const resultHTML = document.getElementById("resultText").innerHTML.trim();
+      if (!resultHTML || resultHTML.includes("ここに見積結果が表示されます")) {
+        alert("先に見積を作成してください。");
+        return;
+      }
+
+      const element = document.getElementById("estimate").cloneNode(true);
+      const mapSection = element.querySelector("#mapContainer");
+      if (mapSection) mapSection.remove();
+
+      const container = document.createElement("div");
+      container.appendChild(element);
+
+      html2pdf()
+        .set({
+          margin: 10,
+          filename: "見積書.pdf",
+          image: { type: "jpeg", quality: 0.98 },
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        })
+        .from(container)
+        .save();
     }
-  });
-
-  function generatePDF() {
-    const resultHTML = document.getElementById("resultText").innerHTML.trim();
-    if (!resultHTML || resultHTML.includes("ここに見積結果が表示されます")) {
-      alert("先に見積を作成してください。");
-      return;
-    }
-
-    const element = document.getElementById("estimate").cloneNode(true);
-    const mapSection = element.querySelector("#mapContainer");
-    if (mapSection) mapSection.remove();
-
-    const container = document.createElement("div");
-    container.appendChild(element);
-
-    html2pdf().set({
-      margin: 10,
-      filename: '見積書.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    }).from(container).save();
-  }
-</script>
+  </script>
 </body>
 </html>
